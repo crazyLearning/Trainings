@@ -1,0 +1,13 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/LoyaltyManagement/.vs/LoyaltyManagement
+/LoyaltyManagement/bin/Debug
+/LoyaltyManagement/obj/Debug
+/LoyaltyManagement/packages
+/LoyaltyManagement.WebResources/obj/Debug
+/LoyaltyManagementUnitTests/.vs
+/LoyaltyManagementUnitTests/bin/Debug
+/LoyaltyManagementUnitTests/FakesAssemblies
+/LoyaltyManagementUnitTests/obj/Debug
