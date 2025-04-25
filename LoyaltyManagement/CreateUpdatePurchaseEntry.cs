@@ -31,16 +31,19 @@ namespace LoyaltyManagement
 
                 // Retrieve full Purchase Entry if needed
                 tracing.Trace("Retrieve full Purchase Entry if needed");
-                purchase = service.Retrieve("new_purchaseentry", purchaseId, new ColumnSet("new_product", "new_cardused", "new_purchaseprice"));
+                purchase = service.Retrieve("new_purchaseentry", purchaseId, new ColumnSet("new_product", "new_cardused", "new_purchaseprice", "new_customer"));
 
+                var customerRef = purchase.GetAttributeValue<EntityReference>("new_customer");
                 var productRef = purchase.GetAttributeValue<EntityReference>("new_product");
-                var cardRef = purchase.GetAttributeValue<EntityReference>("new_cardused");
-                var purchasePrice = purchase.GetAttributeValue<Money>("new_purchaseprice")?.Value ?? 0;
+                //var cardRef = purchase.GetAttributeValue<EntityReference>("new_cardused"); //todo
+                //var purchasePrice = purchase.GetAttributeValue<Money>("new_purchaseprice")?.Value ?? 0; //todo
                 var currencyRef = purchase.GetAttributeValue<EntityReference>("transactioncurrencyid");
-                tracing.Trace("cardTypeRef.Id = " + productRef.Id);
+                tracing.Trace("productRef.Id = " + productRef.Id);
                 tracing.Trace("currencyRef.Id = " + currencyRef.Id);
+                var priceLevel = GetPurchasePrice(service, tracing, productRef, currencyRef);
+                var purchasePrice = priceLevel.GetAttributeValue<Money>("amount")?.Value ?? 0;
 
-                if (productRef == null || cardRef == null || currencyRef == null || purchasePrice <= 0) return;
+                if (productRef == null || currencyRef == null || purchasePrice <= 0) return;
 
                 // Step 1: Get Product Category
                 tracing.Trace("Get Product Category");
@@ -50,7 +53,8 @@ namespace LoyaltyManagement
 
                 // Step 2: Get User Loyalty Card → Card Type
                 tracing.Trace("Get User Loyalty Card → Card Type");
-                var userCard = service.Retrieve("new_loyaltycard", cardRef.Id, new ColumnSet("new_cardtype", "new_totalpoints"));
+                //var userCard = service.Retrieve("new_loyaltycard", cardRef.Id, new ColumnSet("new_cardtype", "new_totalpoints"));
+                var userCard = GetLoyaltyCard(service, customerRef);
                 var cardTypeRef = userCard.GetAttributeValue<EntityReference>("new_cardtype");
                 if (cardTypeRef == null) return;
 
@@ -93,7 +97,7 @@ namespace LoyaltyManagement
                 decimal oldPoints = userCard.GetAttributeValue<decimal>("new_totalpoints");
                 decimal updatedPoints = oldPoints + pointsEarned;
 
-                var updateCard = new Entity("new_loyaltycard", cardRef.Id);
+                var updateCard = new Entity("new_loyaltycard", userCard.Id);
                 updateCard["new_totalpoints"] = updatedPoints;
                 service.Update(updateCard);
             }
@@ -101,6 +105,58 @@ namespace LoyaltyManagement
             {
                 tracing.Trace("Exception Occurred " + ex.Message);
                 throw (ex);
+            }
+        }
+
+        public Entity GetLoyaltyCard(IOrganizationService service, EntityReference contactReference)
+        {
+            var query = new QueryExpression("new_loyaltycard")
+            {
+                ColumnSet = new ColumnSet("new_cardtype", "new_totalpoints"),
+                Criteria = {
+                    Conditions = {
+                    new ConditionExpression("new_customer", ConditionOperator.Equal, contactReference.Id),
+                    new ConditionExpression("statuscode", ConditionOperator.Equal, 1)
+                }
+            }
+            };
+            var loyaltyCard = service.RetrieveMultiple(query).Entities.FirstOrDefault();
+            if (loyaltyCard == null) return null;
+            return loyaltyCard;
+        }
+
+        public Entity GetPurchasePrice(IOrganizationService service, ITracingService tracingService, EntityReference productReference,  EntityReference currencyReference)
+        {
+            tracingService.Trace("Insice GetPurchasePrice method");
+            tracingService.Trace("productReference = " + productReference.Id);
+            tracingService.Trace("currencyReference = " + currencyReference.Id);
+            // Create query to get product price
+            var query = new QueryExpression("productpricelevel")
+            {
+                ColumnSet = new ColumnSet("amount"),
+                TopCount = 1,
+                Criteria = new FilterExpression(LogicalOperator.And)
+                {
+                    Conditions =
+                        {
+                            new ConditionExpression("productid", ConditionOperator.Equal, productReference.Id),
+                            new ConditionExpression("transactioncurrencyid", ConditionOperator.Equal, currencyReference.Id)
+                        }
+                }
+            };
+
+            tracingService.Trace("Making Service Call");
+            var priceLevel = service.RetrieveMultiple(query);
+            tracingService.Trace("Service Call completed");
+            if (priceLevel.Entities.Count > 0)
+            {
+                tracingService.Trace($"Price found");
+                return priceLevel.Entities.FirstOrDefault();
+            }
+            else
+            {
+                tracingService.Trace("No price found for this product and currency.");
+                return null;
             }
         }
     }

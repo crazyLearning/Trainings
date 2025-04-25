@@ -41,7 +41,8 @@ namespace LoyaltyManagement
             {
                 Conditions =
                 {
-                    new ConditionExpression("new_customer", ConditionOperator.Equal, contactRef.Id)
+                    new ConditionExpression("new_customer", ConditionOperator.Equal, contactRef.Id),
+                    new ConditionExpression("statuscode", ConditionOperator.Equal, 1)
                 }
             }
                 };
@@ -72,7 +73,7 @@ namespace LoyaltyManagement
                 // 7. Store current points snapshot on redemption request
                 redemption["new_usercurrentpoints"] = currentPoints;
 
-                service.Update(redemption);
+                //service.Update(redemption);
                 tracing.Trace("Redemption request marked as auto-approved.");
             }
             catch (Exception ex)
